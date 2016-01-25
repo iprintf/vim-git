@@ -108,6 +108,14 @@ function! KyoGitAutoBranch()
     if out == ''
         let out = KyoGitRunCommand('checkout ', '-b '.name)
         " echo out
+    else
+        let cmd = s:Kyo_Git_Cmd.' branch | grep "*" | sed -en "s/\*//p"'
+        let oldname = system(cmd)
+        if oldname == name
+            return
+        endif
+
+        return KyoGitRunCommand('checkout', name)
     endif
 endfunction
 
