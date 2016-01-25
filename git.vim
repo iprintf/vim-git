@@ -40,6 +40,27 @@ else
     finish
 endif
 
+"控制是否默认开启自动提交功能
+if !exists('g:Kyo_Git_AutoStart')
+    let g:Kyo_Git_AutoStart = 0
+endif
+
+"保存自动提交自动创建分支状态
+"0 代表未开启功能
+"1 代表开启功能
+if !exists('g:Kyo_Git_Status')
+    let g:Kyo_Git_Status = 0
+endif
+
+"控制在什么样的事件触发自动提交
+"w  代表在:w 保存时触发
+"q  代表在:wq 保存退出时触发
+if !exists('g:Kyo_Git_Auto_Event')
+    let g:Kyo_Git_Auto_Event = 'w'
+endif
+
+"======================================================================
+
 "检查当前工作路径是否为Git Project
 function! KyoCheckGitPro()
     let out = system('git status')
@@ -61,6 +82,111 @@ function! KyoGitRunCommandNE(cmd, parameter)
     " echo 'echo -n $('.s:Kyo_Git_Cmd.' '.a:cmd.' '.a:parameter.')'
     return system(s:Kyo_Git_Cmd.' '.a:cmd.' '.a:parameter)
 endfunction
+
+"======================================================================
+
+"Git Init当前编辑文件目录
+function! KyoGitInit()
+    return KyoGitRunCommandNE('init', getcwd())
+endfunction
+
+"Git Add操作函数
+"opt = all      git add *
+"opt = ''       git add editfile
+function! KyoGitAdd(...)
+    if a:0
+        let opt = a:1
+    else
+        let opt = ''
+    endif
+    if opt == 'all'
+        return KyoGitRunCommand('add', '*')
+    endif
+    let absolutePath = getcwd().'/'.GetFileName()
+    return KyoGitRunCommand('add', absolutePath)
+endfunction
+
+"Git Commit操作函数
+"opt = all      git commit -a
+"opt = amend    git commit --amend
+"opt = msg      git commit -m
+"opt = ''       git commit
+function! KyoGitCommit(...)
+"{
+    let parameter = ''
+    if a:0
+        let opt = a:1
+    else
+        let opt = ''
+    endif
+
+    if opt == 'all'
+        let parameter = '-a'
+    elseif opt == 'amend'
+        let parameter = '--amend'
+    elseif opt == 'msg'
+        call KyoGitAdd('all')
+        let msg = input('commit message: ')
+        if msg != ''
+            let out = KyoGitRunCommand('commit', '-m $'''.msg.'''')
+            if stridx(out, 'no changes added to commit') == -1
+                echo '提交成功!'
+            else
+                echo '提交失败: 项目没有改变!'
+            endif
+        endif
+        return 0
+    else
+        call KyoGitAdd('all')
+    endif
+    let cmd = s:Kyo_Git_Cmd.' commit '.parameter
+    " echo cmd
+    execute 'silent !'.cmd
+    :redraw!
+"}
+endfunction
+
+"Git Branch操作函数
+"opt = co       git checkout branch
+"opt = m        git branch oldbranch newbranch
+"opt = ''       git checkout todaybranch
+function! KyoGitBranch(...)
+"{
+    if a:0
+        let opt = a:1
+    else
+        let opt = ''
+    endif
+    if opt == 'm'
+        let cmd = s:Kyo_Git_Cmd.' branch | grep "*" | sed -en "s/\*//p"'
+        let oldname = system(cmd)
+        if oldname == ''
+            echo '重命名分支失败，没有获取到当前分支名'
+            return 0
+        endif
+        let newname = input('New Branch Name:')
+        if newname == ''
+            echo '重命名分支失败, 没有输入新分支名!'
+            return 0
+        endif
+
+        return KyoGitRunCommand('branch', '-m '.oldname.' '.newname)
+    elseif opt == 'co'
+        echo KyoGitRunCommandNE('branch', '-l')
+        let branch = input('checkout branch name:')
+        if branch == ''
+            echo '切换分支失败，没有输入分支名!'
+            return 0
+        endif
+        return KyoGitRunCommand('checkout', branch)
+    else
+        return KyoGitRunCommand('checkout', strftime("%Y%m%d"))
+    endif
+"}
+endfunction
+
+
+"======================================================================
 
 "保存时自动提交
 function! KyoGitAutoCommit()
@@ -103,6 +229,7 @@ endfunction
 
 "打开文件自己检查分支是否存在，不存在则创建
 function! KyoGitAutoBranch()
+"{
     let name = strftime('%Y%m%d')
     let out = system(s:Kyo_Git_Cmd.' branch | grep '.name)
     if out == ''
@@ -117,136 +244,70 @@ function! KyoGitAutoBranch()
 
         return KyoGitRunCommand('checkout', name)
     endif
-endfunction
-
-"Git Add操作函数
-"opt = all      git add *
-"opt = ''       git add editfile
-function! KyoGitAdd(opt)
-    if a:opt == 'all'
-        return KyoGitRunCommand('add', '*')
-    endif
-    let absolutePath = getcwd().'/'.GetFileName()
-    return KyoGitRunCommand('add', absolutePath)
-endfunction
-
-"Git Commit操作函数
-"opt = all      git commit -a
-"opt = amend    git commit --amend
-"opt = msg      git commit -m
-"opt = ''       git commit
-function! KyoGitCommit(opt)
-"{
-    let parameter = ''
-    if a:opt == 'all'
-        let parameter = '-a'
-    elseif a:opt == 'amend'
-        let parameter = '--amend'
-    elseif a:opt == 'msg'
-        call KyoGitAdd('all')
-        let msg = input('commit message: ')
-        if msg != ''
-            let out = KyoGitRunCommand('commit', '-m $'''.msg.'''')
-            if stridx(out, 'no changes added to commit') == -1
-                echo '提交成功!'
-            else
-                echo '提交失败: 项目没有改变!'
-            endif
-        endif
-        return 0
-    else
-        call KyoGitAdd('all')
-    endif
-    let cmd = s:Kyo_Git_Cmd.' commit '.parameter
-    " echo cmd
-    execute 'silent !'.cmd
-    :redraw!
 "}
 endfunction
 
-"Git Branch操作函数
-"opt = co       git checkout branch
-"opt = m        git branch oldbranch newbranch
-"opt = ''       git checkout todaybranch
-function! KyoGitBranch(opt)
-"{
-    if a:opt == 'm'
-        let cmd = s:Kyo_Git_Cmd.' branch | grep "*" | sed -en "s/\*//p"'
-        let oldname = system(cmd)
-        if oldname == ''
-            echo '重命名分支失败，没有获取到当前分支名'
-            return 0
-        endif
-        let newname = input('New Branch Name:')
-        if newname == ''
-            echo '重命名分支失败, 没有输入新分支名!'
-            return 0
-        endif
-
-        return KyoGitRunCommand('branch', '-m '.oldname.' '.newname)
-    elseif a:opt == 'co'
-        echo KyoGitRunCommandNE('branch', '-l')
-        let branch = input('checkout branch name:')
-        if branch == ''
-            echo '切换分支失败，没有输入分支名!'
-            return 0
-        endif
-        return KyoGitRunCommand('checkout', branch)
-    else
-        return KyoGitRunCommand('checkout', strftime("%Y%m%d"))
-    endif
-"}
-endfunction
-
-"Git Init当前编辑文件目录
-function! KyoGitInit()
-    return KyoGitRunCommandNE('init', getcwd())
-endfunction
-
-"控制是否默认开启自动提交功能
-if !exists('g:Kyo_Git_Switch')
-    let g:Kyo_Git_Switch = 0
-endif
-
-function! KyoGitToggle()
-"{
+"自动提交功能开启
+function! KyoGitAutoOn()
     if !KyoCheckGitPro()
         return -1
     endif
-
-    if g:Kyo_Git_Switch == 0
-        au BufReadPost * call KyoGitAutoBranch()
-        " au BufWritePost * call KyoGitAutoCommit()
+    if g:Kyo_Git_Auto_Event == 'w'
+        au BufWritePost * call KyoGitAutoCommit()
+    elseif g:Kyo_Git_Auto_Event == 'q'
         au QuitPre * call KyoGitAutoCommit()
-        call KyoGitAutoBranch()
-        let g:Kyo_Git_Switch = 1
-    else
-        au! BufReadPost * call KyoGitAutoBranch()
-        au! QuitPre * call KyoGitAutoCommit()
-        " au! BufWritePost * call KyoGitAutoCommit()
-        let g:Kyo_Git_Switch = 0
     endif
-    echo '自动提交功能:'g:Kyo_Git_Switch
+    call KyoGitAutoBranch()
+    let g:Kyo_Git_Status = 1
+endfunction
+
+"自动提交功能关闭
+function! KyoGitAutoOff()
+    if !KyoCheckGitPro()
+        return -1
+    endif
+    if g:Kyo_Git_Auto_Event == 'w'
+        au! BufWritePost * call KyoGitAutoCommit()
+    elseif g:Kyo_Git_Auto_Event == 'q'
+        au! QuitPre * call KyoGitAutoCommit()
+    endif
+    let g:Kyo_Git_Status = 0
+endfunction
+
+"自动提交功能开关轮换
+function! KyoGitToggle()
+"{
+    if g:Kyo_Git_Status == 0
+        call KyoGitAutoOn()
+    else
+        call KyoGitAutoOff()
+    endif
+
+    echo '自动提交功能:'g:Kyo_Git_Status
 "}
 endfunction
 
-" git init              ,gi
-" git add               ,ga
-" git add  *            ,gaa
-" git commit            ,gcv
-" git commit -m         ,gc
-" git commit -a         ,gca
-" git commit --amend    ,gcr
-" git branch            ,gb
-nnoremap ,gau   :call KyoGitToggle()<CR>
-nnoremap ,gi    :call KyoGitInit()<CR>
-nnoremap ,ga    :call KyoGitAdd('')<CR>
-nnoremap ,gaa   :call KyoGitAdd('all')<CR>
-nnoremap ,gc    :call KyoGitCommit('')<CR>
-nnoremap ,gcv   :call KyoGitCommit('msg')<CR>
-nnoremap ,gca   :call KyoGitCommit('all')<CR>
-nnoremap ,gcr   :call KyoGitCommit('amend')<CR>
-" nnoremap ,gb    :call KyoGitBranch('')<CR><CR>
-" nnoremap ,gbr   :call KyoGitBranch('m')<CR><CR>
-" nnoremap ,gbc   :call KyoGitBranch('co')<CR><CR>
+"默认打开文件是否开启自动提交功能
+if g:Kyo_Git_AutoStart
+    call KyoGitAutoOn()
+endif
 
+command! KyoGitAutoOn call KyoGitAutoOn()
+command! KyoGitAutoOff call KyoGitAutoOff()
+command! KyoGitToggle call KyoGitToggle()
+command! KyoGitInit call KyoGitInit()
+command! -nargs=? KyoGitAdd call KyoGitAdd(<f-args>)
+command! -nargs=? KyoGitCommit call KyoGitCommit(<f-args>)
+command! -nargs=? KyoGitBranch call KyoGitBranch(<f-args>)
+
+nnoremap ,gau   :KyoGitToggle<CR>
+nnoremap ,gi    :KyoGitInit<CR>
+nnoremap ,ga    :KyoGitAdd<CR>
+nnoremap ,gaa   :KyoGitAdd all<CR>
+nnoremap ,gc    :KyoGitCommit<CR>
+nnoremap ,gcv   :KyoGitCommit msg<CR>
+nnoremap ,gca   :KyoGitCommit all<CR>
+nnoremap ,gcr   :KyoGitCommit amend<CR>
+nnoremap ,gb    :KyoGitBranch<CR>
+nnoremap ,gbr   :KyoGitBranch m<CR>
+nnoremap ,gbc   :KyoGitBranch co<CR>
