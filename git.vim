@@ -77,9 +77,9 @@ function! KyoGitAutoCommit()
     if diff != ''
         let out = KyoGitRunCommand('add', absolutePath)
         let cmd = 'echo -n $('
-        let cmd = cmd.s:Kyo_Git_Cmd.' log '.strftime("%Y%m%d")
-        let cmd = cmd.' --grep "'.fileGitPath.'" --oneline'
-        let cmd = cmd.' | wc -l)'
+        let cmd = cmd.s:Kyo_Git_Cmd.' log --grep "'.fileGitPath.'" --oneline '
+        let cmd = cmd.' --pretty=format:"%cd" --date=iso '
+        let cmd = cmd.' | grep "'.strftime("%Y-%m-%d").'" | wc -l)'
         " echo cmd
         let fileAutoCount = system(cmd)
         let fileAutoCount += 1
@@ -96,7 +96,7 @@ function! KyoGitAutoCommit()
         let commit = commit.''''
         let out = KyoGitRunCommand('commit', commit)
         " echo out
-        echo '自动提交#'.fileAutoCount.'成功!'
+        " echo '自动提交#'.fileAutoCount.'成功!'
     endif
 "}
 endfunction
@@ -145,9 +145,7 @@ function! KyoGitCommit(opt)
     elseif a:opt == 'msg'
         call KyoGitAdd('all')
         let msg = input('commit message: ')
-        if msg == ''
-            echo '提交失败: 没有输入提交信息!'
-        else
+        if msg != ''
             let out = KyoGitRunCommand('commit', '-m $'''.msg.'''')
             if stridx(out, 'no changes added to commit') == -1
                 echo '提交成功!'
@@ -218,12 +216,14 @@ function! KyoGitToggle()
 
     if g:Kyo_Git_Switch == 0
         au BufReadPost * call KyoGitAutoBranch()
-        au BufWritePost * call KyoGitAutoCommit()
+        " au BufWritePost * call KyoGitAutoCommit()
+        au QuitPre * call KyoGitAutoCommit()
         call KyoGitAutoBranch()
         let g:Kyo_Git_Switch = 1
     else
         au! BufReadPost * call KyoGitAutoBranch()
-        au! BufWritePost * call KyoGitAutoCommit()
+        au! QuitPre * call KyoGitAutoCommit()
+        " au! BufWritePost * call KyoGitAutoCommit()
         let g:Kyo_Git_Switch = 0
     endif
     echo '自动提交功能:'g:Kyo_Git_Switch
@@ -238,15 +238,15 @@ endfunction
 " git commit -a         ,gca
 " git commit --amend    ,gcr
 " git branch            ,gb
-nnoremap ,gau   :call KyoGitToggle()<CR><CR>
-nnoremap ,gi    :call KyoGitInit()<CR><CR>
-nnoremap ,ga    :call KyoGitAdd('')<CR><CR>
-nnoremap ,gaa   :call KyoGitAdd('all')<CR><CR>
-nnoremap ,gcv   :call KyoGitCommit('')<CR><CR>
-nnoremap ,gc    :call KyoGitCommit('msg')<CR><CR>
-nnoremap ,gca   :call KyoGitCommit('all')<CR><CR>
-nnoremap ,gcr   :call KyoGitCommit('amend')<CR><CR>
-nnoremap ,gb    :call KyoGitBranch('')<CR><CR>
-nnoremap ,gbr   :call KyoGitBranch('m')<CR><CR>
-nnoremap ,gbc   :call KyoGitBranch('co')<CR><CR>
+nnoremap ,gau   :call KyoGitToggle()<CR>
+nnoremap ,gi    :call KyoGitInit()<CR>
+nnoremap ,ga    :call KyoGitAdd('')<CR>
+nnoremap ,gaa   :call KyoGitAdd('all')<CR>
+nnoremap ,gc    :call KyoGitCommit('')<CR>
+nnoremap ,gcv   :call KyoGitCommit('msg')<CR>
+nnoremap ,gca   :call KyoGitCommit('all')<CR>
+nnoremap ,gcr   :call KyoGitCommit('amend')<CR>
+" nnoremap ,gb    :call KyoGitBranch('')<CR><CR>
+" nnoremap ,gbr   :call KyoGitBranch('m')<CR><CR>
+" nnoremap ,gbc   :call KyoGitBranch('co')<CR><CR>
 
